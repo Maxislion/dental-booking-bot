@@ -1,6 +1,7 @@
 from aiogram import Router, types
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.filters import Command
+from app.keyboards.common import main_menu
 
 router = Router()
 
@@ -31,5 +32,6 @@ async def get_contact(message: types.Message):
 
     await message.answer(
         f"✅ Спасибо! Ваш номер: {phone}\n\n"
-        "Теперь вы можете записаться на прием 👇"
+        "Выберите действие 👇",
+        reply_markup=main_menu()
     )
