@@ -208,18 +208,18 @@ async def admin_confirm(callback: CallbackQuery):
     await callback.bot.send_message(
         chat_id=user_id,
         text=(
-            "✅ Ваша запись подтверждена!\n\n"
+            "<b>✅ Ваша запись подтверждена!</b>\n\n"
             f"👨‍⚕️ Врач: {doctor}\n"
             f"📅 Дата: {date}\n"
             f"⏰ Время: {time}\n\n"
-            "📍 Bobur Denta, Ташкент\n"
-            "Пожалуйста, приходите за 5–10 минут до приема."
-        ),
+            "📍 Boburdenta, Ташкент, Сергелийский район\n"
+            "<b>Пожалуйста, приходите за 5–10 минут до приема.</b>"
+        ), parse_mode="HTML"
     )
 
     # 📍 отправляем геолокацию
     await callback.bot.send_location(
-        chat_id=user_id, latitude=41.2995, longitude=69.2401
+        chat_id=user_id, latitude=41.212546, longitude=69.236330
     )
 
     await callback.answer("Подтверждено")
@@ -235,6 +235,30 @@ async def admin_reject(callback: CallbackQuery):
     )
 
     await callback.answer("Отклонено")
+
+@router.message(lambda msg: msg.text == "/records")
+async def show_today_records(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    bookings = await get_today_bookings()
+
+    if not bookings:
+        await message.answer("📋 Сегодня записей нет")
+        return
+
+    text = "📋 Записи на сегодня:\n\n"
+
+    for i, booking in enumerate(bookings, 1):
+        user_id, doctor, date, time = booking
+
+        text += (
+            f"{i}. 👨‍⚕️ {doctor}\n"
+            f"⏰ {time}\n"
+            f"👤 ID: {user_id}\n\n"
+        )
+
+    await message.answer(text)
 
 
 @router.callback_query(lambda c: c.data == "edit_booking")

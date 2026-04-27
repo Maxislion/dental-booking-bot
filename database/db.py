@@ -8,10 +8,10 @@ async def init_db():
         await db.execute("""
             CREATE TABLE IF NOT EXISTS bookings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                doctor TEXT,
-                date TEXT,
-                time TEXT
+                user_id INTEGER NOT NULL,
+                doctor TEXT NOT NULL,
+                date TEXT NOT NULL,
+                time TEXT NOT NULL
             )
         """)
         await db.commit()
