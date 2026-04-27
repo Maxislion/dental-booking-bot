@@ -1,4 +1,4 @@
-import aiosqlite
+import aiosqlite  # type: ignore
 
 DB_PATH = "database.db"
 

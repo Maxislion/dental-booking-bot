@@ -84,3 +84,19 @@ def confirm_kb():
             [InlineKeyboardButton(text="✏️ Изменить", callback_data="edit_booking")]
         ]
     )
+
+def admin_confirm_kb(user_id, doctor, date, time):
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="✅ Подтвердить",
+                    callback_data=f"admin_confirm|{user_id}|{doctor}|{date}|{time}"
+                ),
+                InlineKeyboardButton(
+                    text="❌ Отменить",
+                    callback_data=f"admin_reject_{user_id}"
+                )
+            ]
+        ]
+    )

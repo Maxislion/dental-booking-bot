@@ -4,6 +4,7 @@ from aiogram.types import CallbackQuery
 from app.keyboards.booking import *
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from app.repositories.booking_repo import *
+from app.utils.config import ADMIN_ID
 
 from app.states.booking import BookingState
 
@@ -115,18 +116,12 @@ async def choose_date(callback: CallbackQuery, state: FSMContext):
     # 🔥 получаем занятые слоты
     booked_times = await get_booked_times(doctor, date)
 
-    text = (
-        f"👨‍⚕️ Вы выбрали: {doctor}\n"
-        f"📅 Дата: {date}\n\n"
-        "⏰ Выберите время:"
-    )
+    text = f"👨‍⚕️ Вы выбрали: {doctor}\n" f"📅 Дата: {date}\n\n" "⏰ Выберите время:"
 
-    await callback.message.edit_text(
-        text,
-        reply_markup=time_kb(booked_times)
-    )
+    await callback.message.edit_text(text, reply_markup=time_kb(booked_times))
 
     await callback.answer()
+
 
 @router.callback_query(lambda c: c.data.startswith("time_"))
 async def choose_time(callback: CallbackQuery, state: FSMContext):
@@ -146,10 +141,7 @@ async def choose_time(callback: CallbackQuery, state: FSMContext):
         f"⏰ Время: {time}"
     )
 
-    await callback.message.edit_text(
-        text,
-        reply_markup=confirm_kb()
-    )
+    await callback.message.edit_text(text, reply_markup=confirm_kb())
 
     await callback.answer()
 
@@ -158,31 +150,91 @@ async def choose_time(callback: CallbackQuery, state: FSMContext):
 async def confirm_booking(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
 
+    user = (
+        f"@{callback.from_user.username}"
+        if callback.from_user.username
+        else callback.from_user.full_name or f"ID: {callback.from_user.id}"
+    )
+
     doctor = data.get("doctor_name")
     date = data.get("date")
     time = data.get("time")
 
     user_id = callback.from_user.id
 
-    # 🔥 повторная проверка
+    # 🔥 проверка занятости
     booked_times = await get_booked_times(doctor, date)
-
     if time in booked_times:
-        await callback.answer("Это время уже заняли. Выберите другое ❌", show_alert=True)
+        await callback.answer(
+            "Это время уже заняли. Выберите другое ❌", show_alert=True
+        )
         return
 
+    # 💾 сохраняем
     await create_booking(user_id, doctor, date, time)
 
+    # ✅ 1. ОТВЕТ ПОЛЬЗОВАТЕЛЮ (ВАЖНО)
     await callback.message.edit_text(
-        f"✅ Запись подтверждена!\n\n"
+        f"⏳ Заявка отправлена!\n\n"
         f"👨‍⚕️ Врач: {doctor}\n"
         f"📅 Дата: {date}\n"
-        f"⏰ Время: {time}"
+        f"⏰ Время: {time}\n\n"
+        "Пожалуйста, ожидайте подтверждение."
+    )
+
+    # 🔔 2. УВЕДОМЛЕНИЕ АДМИНУ
+    await callback.bot.send_message(
+        chat_id=ADMIN_ID,
+        text=(
+            "📢 Новая запись!\n\n"
+            f"👤 Пользователь: {user}\n"
+            f"👨‍⚕️ Врач: {doctor}\n"
+            f"📅 Дата: {date}\n"
+            f"⏰ Время: {time}"
+        ),
+        reply_markup=admin_confirm_kb(callback.from_user.id, doctor, date, time),
     )
 
     await state.clear()
-
     await callback.answer()
+
+
+@router.callback_query(lambda c: c.data.startswith("admin_confirm"))
+async def admin_confirm(callback: CallbackQuery):
+    _, user_id, doctor, date, time = callback.data.split("|")
+
+    user_id = int(user_id)
+
+    await callback.bot.send_message(
+        chat_id=user_id,
+        text=(
+            "✅ Ваша запись подтверждена!\n\n"
+            f"👨‍⚕️ Врач: {doctor}\n"
+            f"📅 Дата: {date}\n"
+            f"⏰ Время: {time}\n\n"
+            "📍 Bobur Denta, Ташкент\n"
+            "Пожалуйста, приходите за 5–10 минут до приема."
+        ),
+    )
+
+    # 📍 отправляем геолокацию
+    await callback.bot.send_location(
+        chat_id=user_id, latitude=41.2995, longitude=69.2401
+    )
+
+    await callback.answer("Подтверждено")
+
+
+@router.callback_query(lambda c: c.data.startswith("admin_reject_"))
+async def admin_reject(callback: CallbackQuery):
+    user_id = int(callback.data.replace("admin_reject_", ""))
+
+    await callback.bot.send_message(
+        chat_id=user_id,
+        text="❌ К сожалению, выбранное время недоступно. Попробуйте другое.",
+    )
+
+    await callback.answer("Отклонено")
 
 
 @router.callback_query(lambda c: c.data == "edit_booking")
@@ -191,8 +243,7 @@ async def edit_booking(callback: CallbackQuery, state: FSMContext):
     doctor_name = data.get("doctor_name")
 
     await callback.message.edit_text(
-        f"👨‍⚕️ Вы выбрали: {doctor_name}\n\n📅 Выберите дату:",
-        reply_markup=dates_kb()
+        f"👨‍⚕️ Вы выбрали: {doctor_name}\n\n📅 Выберите дату:", reply_markup=dates_kb()
     )
 
     await state.set_state(BookingState.choosing_date)
@@ -208,8 +259,7 @@ async def back_to_dates(callback: CallbackQuery, state: FSMContext):
     await state.set_state(BookingState.choosing_date)
 
     await callback.message.edit_text(
-        f"👨‍⚕️ Вы выбрали: {doctor_name}\n\n📅 Выберите дату:",
-        reply_markup=dates_kb()
+        f"👨‍⚕️ Вы выбрали: {doctor_name}\n\n📅 Выберите дату:", reply_markup=dates_kb()
     )
 
     await callback.answer()
@@ -222,6 +272,7 @@ async def navigate_dates(callback: CallbackQuery):
     await callback.message.edit_reply_markup(reply_markup=dates_kb(offset))
 
     await callback.answer()
+
 
 @router.callback_query(lambda c: c.data == "busy")
 async def busy_time(callback: CallbackQuery):
