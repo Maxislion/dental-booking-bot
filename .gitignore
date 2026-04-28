@@ -4,4 +4,4 @@ __pycache__/
 venv/
 .idea/
 .vscode/
-database.db
+*.db
