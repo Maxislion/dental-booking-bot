@@ -10,8 +10,9 @@ async def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
                 doctor TEXT NOT NULL,
-                date TEXT NOT NULL,
-                time TEXT NOT NULL
+                booking_datetime TEXT NOT NULL,
+                notified_24h INTEGER DEFAULT 0,
+                notified_2h INTEGER DEFAULT 0
             )
         """)
         await db.commit()

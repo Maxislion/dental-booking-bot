@@ -5,6 +5,7 @@ from app.keyboards.booking import *
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from app.repositories.booking_repo import *
 from app.utils.config import ADMIN_ID
+from datetime import datetime
 
 from app.states.booking import BookingState
 
@@ -161,6 +162,8 @@ async def confirm_booking(callback: CallbackQuery, state: FSMContext):
     time = data.get("time")
 
     user_id = callback.from_user.id
+    booking_dt = datetime.strptime(f"{date} {time}", "%d.%m %H:%M")
+    booking_dt = booking_dt.replace(year=datetime.now().year)
 
     # 🔥 проверка занятости
     booked_times = await get_booked_times(doctor, date)
@@ -171,7 +174,7 @@ async def confirm_booking(callback: CallbackQuery, state: FSMContext):
         return
 
     # 💾 сохраняем
-    await create_booking(user_id, doctor, date, time)
+    await create_booking(user_id, doctor, booking_dt.isoformat())
 
     # ✅ 1. ОТВЕТ ПОЛЬЗОВАТЕЛЮ (ВАЖНО)
     await callback.message.edit_text(
@@ -205,21 +208,27 @@ async def admin_confirm(callback: CallbackQuery):
 
     user_id = int(user_id)
 
+    # ✅ сообщение пользователю
     await callback.bot.send_message(
         chat_id=user_id,
         text=(
-            "<b>✅ Ваша запись подтверждена!</b>\n\n"
+            "✅ Ваша запись подтверждена!\n\n"
             f"👨‍⚕️ Врач: {doctor}\n"
             f"📅 Дата: {date}\n"
             f"⏰ Время: {time}\n\n"
-            "📍 Boburdenta, Ташкент, Сергелийский район\n"
-            "<b>Пожалуйста, приходите за 5–10 минут до приема.</b>"
-        ), parse_mode="HTML"
+            "📍 Bobur Denta\n"
+            "Пожалуйста, приходите за 5–10 минут до приема."
+        ),
     )
 
-    # 📍 отправляем геолокацию
-    await callback.bot.send_location(
-        chat_id=user_id, latitude=41.212546, longitude=69.236330
+    # 🔥 обновляем сообщение админа (УБИРАЕМ КНОПКИ)
+    await callback.message.edit_text(
+        f"✅ *Запись подтверждена*\n\n"
+        f"👤 Пользователь: {user_id}\n"
+        f"👨‍⚕️ Врач: {doctor}\n"
+        f"📅 Дата: {date}\n"
+        f"⏰ Время: {time}",
+        parse_mode="Markdown"
     )
 
     await callback.answer("Подтверждено")

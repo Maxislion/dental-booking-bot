@@ -6,6 +6,7 @@ from app.handlers.start import router as start_router
 from app.handlers.booking import router as booking_router
 from app.handlers.services import router as services_router
 from database.db import init_db
+from app.services.reminder_service import reminder_loop
 
 async def main():
     bot = Bot(token=BOT_TOKEN)
@@ -14,6 +15,7 @@ async def main():
     dp.include_router(start_router)
     dp.include_router(booking_router)
     dp.include_router(services_router)
+    asyncio.create_task(reminder_loop(bot))
 
     await dp.start_polling(bot)
 
