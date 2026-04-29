@@ -234,13 +234,33 @@ async def admin_confirm(callback: CallbackQuery):
     await callback.answer("Подтверждено")
 
 
-@router.callback_query(lambda c: c.data.startswith("admin_reject_"))
+@router.callback_query(lambda c: c.data.startswith("admin_reject"))
 async def admin_reject(callback: CallbackQuery):
-    user_id = int(callback.data.replace("admin_reject_", ""))
+    _, user_id, doctor, date, time = callback.data.split("|")
 
+    user_id = int(user_id)
+
+    # ✉️ клиенту
     await callback.bot.send_message(
         chat_id=user_id,
-        text="❌ К сожалению, выбранное время недоступно. Попробуйте другое.",
+        text=(
+            "❌ К сожалению, выбранное время недоступно.\n\n"
+            f"👨‍⚕️ Врач: {doctor}\n"
+            f"📅 Дата: {date}\n"
+            f"⏰ Время: {time}\n\n"
+            "Пожалуйста, выберите другое время:"
+        ),
+        reply_markup=services_kb()  # 🔁 возвращаем в начало
+    )
+
+    # 🔥 обновляем сообщение админа
+    await callback.message.edit_text(
+        f"❌ *Запись отклонена*\n\n"
+        f"👤 Пользователь: {user_id}\n"
+        f"👨‍⚕️ Врач: {doctor}\n"
+        f"📅 Дата: {date}\n"
+        f"⏰ Время: {time}",
+        parse_mode="Markdown"
     )
 
     await callback.answer("Отклонено")
