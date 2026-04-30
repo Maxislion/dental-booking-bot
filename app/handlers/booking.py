@@ -99,7 +99,8 @@ async def choose_doctor(callback: CallbackQuery, state: FSMContext):
     await state.set_state(BookingState.choosing_date)
 
     await callback.message.answer(
-        f"👨‍⚕️ Вы выбрали: {doctor_name}\n\n📅 Выберите дату:", reply_markup=dates_kb(0)
+        f"👨‍⚕️ Вы выбрали: {doctor_name}\n\n📅 Выберите дату:",
+        reply_markup=dates_kb(0),
     )
 
     await callback.answer()
@@ -205,30 +206,24 @@ async def confirm_booking(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(lambda c: c.data.startswith("admin_confirm"))
 async def admin_confirm(callback: CallbackQuery):
     _, user_id, doctor, date, time = callback.data.split("|")
-
     user_id = int(user_id)
 
     # ✅ сообщение пользователю
     await callback.bot.send_message(
         chat_id=user_id,
         text=(
-            "✅ Ваша запись подтверждена!\n\n"
+            "<b>✅ Ваша запись подтверждена!\n\n</b>"
             f"👨‍⚕️ Врач: {doctor}\n"
             f"📅 Дата: {date}\n"
             f"⏰ Время: {time}\n\n"
             "📍 Bobur Denta\n"
-            "Пожалуйста, приходите за 5–10 минут до приема."
-        ),
+            "<b>Пожалуйста, приходите за 5–10 минут до приема.</b>"
+        ), parse_mode="HTML"
     )
 
-    # 🔥 обновляем сообщение админа (УБИРАЕМ КНОПКИ)
-    await callback.message.edit_text(
-        f"✅ *Запись подтверждена*\n\n"
-        f"👤 Пользователь: {user_id}\n"
-        f"👨‍⚕️ Врач: {doctor}\n"
-        f"📅 Дата: {date}\n"
-        f"⏰ Время: {time}",
-        parse_mode="Markdown"
+    # 📍 ВОТ ЭТО ТЫ СКОРЕЕ ВСЕГО ПОТЕРЯЛ
+    await callback.bot.send_location(
+        chat_id=user_id, latitude=41.212546, longitude=69.236330
     )
 
     await callback.answer("Подтверждено")
@@ -237,7 +232,6 @@ async def admin_confirm(callback: CallbackQuery):
 @router.callback_query(lambda c: c.data.startswith("admin_reject"))
 async def admin_reject(callback: CallbackQuery):
     _, user_id, doctor, date, time = callback.data.split("|")
-
     user_id = int(user_id)
 
     # ✉️ клиенту
@@ -250,20 +244,11 @@ async def admin_reject(callback: CallbackQuery):
             f"⏰ Время: {time}\n\n"
             "Пожалуйста, выберите другое время:"
         ),
-        reply_markup=services_kb()  # 🔁 возвращаем в начало
+        reply_markup=services_kb(),  # 🔁 возвращаем в начало
     )
-
-    # 🔥 обновляем сообщение админа
-    await callback.message.edit_text(
-        f"❌ *Запись отклонена*\n\n"
-        f"👤 Пользователь: {user_id}\n"
-        f"👨‍⚕️ Врач: {doctor}\n"
-        f"📅 Дата: {date}\n"
-        f"⏰ Время: {time}",
-        parse_mode="Markdown"
-    )
-
+    
     await callback.answer("Отклонено")
+
 
 @router.message(lambda msg: msg.text == "/records")
 async def show_today_records(message: types.Message):
@@ -281,11 +266,7 @@ async def show_today_records(message: types.Message):
     for i, booking in enumerate(bookings, 1):
         user_id, doctor, date, time = booking
 
-        text += (
-            f"{i}. 👨‍⚕️ {doctor}\n"
-            f"⏰ {time}\n"
-            f"👤 ID: {user_id}\n\n"
-        )
+        text += f"{i}. 👨‍⚕️ {doctor}\n" f"⏰ {time}\n" f"👤 ID: {user_id}\n\n"
 
     await message.answer(text)
 
