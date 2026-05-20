@@ -109,6 +109,20 @@ def confirm_kb():
         ]
     )
 
+def cancel_kb(booking_data):
+    user_id, doctor, date, time = booking_data
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="❌ Отменить запись",
+                    callback_data=f"user_cancel|{user_id}|{doctor}|{date}|{time}"
+                )
+            ]
+        ]
+    )
+
 
 def admin_confirm_kb(user_id, doctor, date, time):
     return InlineKeyboardMarkup(

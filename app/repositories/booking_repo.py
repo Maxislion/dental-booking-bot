@@ -3,11 +3,16 @@ from database.db import DB_PATH
 from datetime import datetime, timedelta
 
 
-async def create_booking(user_id, doctor, booking_datetime):
+async def create_booking(user_id, doctor, booking_datetime, pending_message_id=None):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            "INSERT INTO bookings (user_id, doctor, booking_datetime) VALUES (?, ?, ?)",
-            (user_id, doctor, booking_datetime),
+            """
+            INSERT INTO bookings (
+                user_id, doctor, booking_datetime, status, pending_message_id
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (user_id, doctor, booking_datetime, "pending", pending_message_id),
         )
         await db.commit()
 
@@ -15,7 +20,11 @@ async def create_booking(user_id, doctor, booking_datetime):
 async def get_booked_times(doctor, date):
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
-            "SELECT booking_datetime FROM bookings WHERE doctor = ?", (doctor,)
+            """
+    SELECT booking_datetime FROM bookings 
+    WHERE doctor = ? AND status != 'cancelled_by_user'
+    """,
+            (doctor,),
         )
         rows = await cursor.fetchall()
 
@@ -55,7 +64,7 @@ async def get_today_bookings():
             WHERE booking_datetime >= ? AND booking_datetime < ?
             ORDER BY booking_datetime
             """,
-            (start_of_day.isoformat(), end_of_day.isoformat())
+            (start_of_day.isoformat(), end_of_day.isoformat()),
         )
         return await cursor.fetchall()
 
@@ -77,3 +86,42 @@ async def mark_notified(booking_id, type_):
                 "UPDATE bookings SET notified_2h = 1 WHERE id = ?", (booking_id,)
             )
         await db.commit()
+
+
+from datetime import datetime
+
+
+async def update_booking_status(user_id, doctor, date, time, status):
+    booking_dt = datetime.strptime(f"{date} {time}", "%d.%m %H:%M")
+    booking_dt = booking_dt.replace(year=datetime.now().year)
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """
+            UPDATE bookings
+            SET status = ?
+            WHERE user_id = ? AND doctor = ? AND booking_datetime = ?
+            """,
+            (status, user_id, doctor, booking_dt.isoformat()),
+        )
+        await db.commit()
+
+
+async def get_pending_message_id(user_id, doctor, date, time):
+    booking_dt = datetime.strptime(f"{date} {time}", "%d.%m %H:%M")
+    booking_dt = booking_dt.replace(year=datetime.now().year)
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """
+            SELECT pending_message_id
+            FROM bookings
+            WHERE user_id = ? AND doctor = ? AND booking_datetime = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (user_id, doctor, booking_dt.isoformat()),
+        )
+        row = await cursor.fetchone()
+
+    return row[0] if row else None

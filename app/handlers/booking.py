@@ -1,4 +1,5 @@
 from aiogram import Router, types
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery
 from app.keyboards.booking import *
@@ -175,15 +176,30 @@ async def confirm_booking(callback: CallbackQuery, state: FSMContext):
         return
 
     # 💾 сохраняем
-    await create_booking(user_id, doctor, booking_dt.isoformat())
+    await create_booking(
+        user_id,
+        doctor,
+        booking_dt.isoformat(),
+        pending_message_id=callback.message.message_id,
+    )
 
     # ✅ 1. ОТВЕТ ПОЛЬЗОВАТЕЛЮ (ВАЖНО)
     await callback.message.edit_text(
-        f"⏳ Заявка отправлена!\n\n"
+        f"⏳ <b>Заявка отправлена!</b>\n\n"
         f"👨‍⚕️ Врач: {doctor}\n"
         f"📅 Дата: {date}\n"
         f"⏰ Время: {time}\n\n"
-        "Пожалуйста, ожидайте подтверждение."
+        "Ожидайте подтверждение или отмените заявку.",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="❌ Отменить заявку", callback_data=f"cancel_pending|{doctor}|{date}|{time}"
+                    )
+                ]
+            ]
+        ),
     )
 
     # 🔔 2. УВЕДОМЛЕНИЕ АДМИНУ
@@ -202,11 +218,47 @@ async def confirm_booking(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.answer()
 
+@router.callback_query(lambda c: c.data.startswith("cancel_pending"))
+async def cancel_pending(callback: CallbackQuery):
+    _, doctor, date, time = callback.data.split("|")
+    user_id = callback.from_user.id
+
+    await update_booking_status(user_id, doctor, date, time, "cancelled_by_user")
+
+    await callback.message.edit_text(
+        "❌ Заявка отменена.\n\nВы можете записаться заново."
+    )
+
+    await callback.bot.send_message(
+        chat_id=ADMIN_ID,
+        text=(
+            "❌ Клиент отменил заявку ДО подтверждения\n\n"
+            f"👤 ID: {user_id}\n"
+            f"👨‍⚕️ Врач: {doctor}\n"
+            f"📅 Дата: {date}\n"
+            f"⏰ Время: {time}"
+        )
+    )
+
+    await callback.answer("Отменено")
+
 
 @router.callback_query(lambda c: c.data.startswith("admin_confirm"))
 async def admin_confirm(callback: CallbackQuery):
     _, user_id, doctor, date, time = callback.data.split("|")
     user_id = int(user_id)
+
+    pending_message_id = await get_pending_message_id(user_id, doctor, date, time)
+
+    await update_booking_status(user_id, doctor, date, time, "confirmed")
+
+    if pending_message_id:
+        try:
+            await callback.bot.delete_message(
+                chat_id=user_id, message_id=pending_message_id
+            )
+        except TelegramBadRequest:
+            pass
 
     # ✅ сообщение пользователю
     await callback.bot.send_message(
@@ -218,7 +270,8 @@ async def admin_confirm(callback: CallbackQuery):
             f"⏰ Время: {time}\n\n"
             "📍 Bobur Denta\n"
             "<b>Пожалуйста, приходите за 5–10 минут до приема.</b>"
-        ), parse_mode="HTML"
+        ),
+        parse_mode="HTML",
     )
 
     # 📍 ВОТ ЭТО ТЫ СКОРЕЕ ВСЕГО ПОТЕРЯЛ
@@ -234,6 +287,8 @@ async def admin_reject(callback: CallbackQuery):
     _, user_id, doctor, date, time = callback.data.split("|")
     user_id = int(user_id)
 
+    await update_booking_status(user_id, doctor, date, time, "cancelled_by_admin")
+
     # ✉️ клиенту
     await callback.bot.send_message(
         chat_id=user_id,
@@ -246,7 +301,7 @@ async def admin_reject(callback: CallbackQuery):
         ),
         reply_markup=services_kb(),  # 🔁 возвращаем в начало
     )
-    
+
     await callback.answer("Отклонено")
 
 
